@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Dinner Ticket</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --paper: #F4EFE4;
+  --paper-dark: #E8E0CE;
+  --ink: #232019;
+  --ink-soft: #5A5245;
+  --stamp-red: #B23A2C;
+  --ready-green: #4A7856;
+  --line: #C7BCA5;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background: #1c1a16;
+  font-family: 'Inter', sans-serif;
+  color: var(--ink);
+  display:flex;
+  justify-content:center;
+  padding: 24px 12px 60px;
+  min-height: 100vh;
+}
+
+.ticket{
+  width: 100%;
+  max-width: 420px;
+  background: var(--paper);
+  position: relative;
+  padding: 28px 26px 30px;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  background-image:
+    repeating-linear-gradient(180deg, rgba(35,32,25,0.025) 0px, rgba(35,32,25,0.025) 1px, transparent 1px, transparent 26px);
+}
+
+.perf{
+  position:absolute;
+  left:0; right:0;
+  height:12px;
+  background:
+    radial-gradient(circle, transparent 5px, var(--paper) 5.5px) 0 50% / 20px 20px repeat-x;
+}
+.perf.top{ top:-6px; }
+.perf.bottom{ bottom:-6px; transform: rotate(180deg); }
+
+.header{
+  text-align:center;
+  border-bottom: 2px dashed var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.title{
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 44px;
+  line-height: 0.9;
+  letter-spacing: 1px;
+  margin: 2px 0 6px;
+}
+.subtitle{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.section-label{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--stamp-red);
+  margin: 18px 0 8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.section-label::after{
+  content:'';
+  flex:1;
+  border-bottom: 1px dotted var(--line);
+}
+
+.chip-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}
+.chip{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 13px;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor:pointer;
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+.chip:hover{ background: rgba(35,32,25,0.06); }
+.chip.selected{
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.custom-row{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+}
+.custom-row input{
+  flex:1;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  background: var(--paper-dark);
+  color: var(--ink);
+  border-radius:2px;
+}
+.custom-row input:focus{ outline: none; border-color: var(--ink); }
+
+.loc-row{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--paper-dark);
+  border-left: 3px solid var(--ready-green);
+  min-height: 16px;
+}
+.loc-row.pending{ border-left-color: var(--stamp-red); }
+.loc-row button{
+  background:none;
+  border:none;
+  text-decoration: underline;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--ink);
+  cursor:pointer;
+  padding:0;
+  margin-left: 6px;
+}
+
+.totals{
+  border-top: 2px dashed var(--line);
+  margin-top: 20px;
+  padding-top: 14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  display:flex;
+  justify-content: space-between;
+}
+
+.send-btn{
+  width:100%;
+  margin-top: 18px;
+  padding: 15px;
+  background: var(--stamp-red);
+  color: var(--paper);
+  border: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+  transform: rotate(-0.4deg);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.send-btn:hover{ transform: rotate(0deg) scale(1.01); background: #9A3125; }
+.send-btn:disabled{ background: var(--line); color: var(--ink-soft); cursor: not-allowed; transform:none; }
+
+.foot-note{
+  text-align:center;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  margin-top: 14px;
+  letter-spacing: 1px;
+}
+
+.results{
+  margin-top: 18px;
+}
+.result-card{
+  border: 1.5px solid var(--ink);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--paper-dark);
+  position: relative;
+}
+.result-card.pick{
+  border-color: var(--ready-green);
+  border-width: 2px;
+}
+.pick-flag{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--ready-green);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.result-name{
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.result-meta{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.result-link{
+  display:inline-block;
+  margin-top: 6px;
+  margin-right: 12px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--stamp-red);
+  text-decoration: none;
+  border-bottom: 1px solid var(--stamp-red);
+}
+
+.status-msg{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin-top: 14px;
+  padding: 10px;
+}
+.status-msg.error{
+  color: var(--stamp-red);
+  border: 1px dashed var(--stamp-red);
+}
+</style>
+</head>
+<body>
+
+<div class="ticket" id="ticket">
+  <div class="perf top"></div>
+
+  <div class="header">
+    <div class="eyebrow">TONIGHT'S PICK · TABLE FOR YOU</div>
+    <div class="title">DINNER TICKET</div>
+    <div class="subtitle" id="dateline"></div>
+  </div>
+
+  <div class="section-label">CRAVING</div>
+  <div class="chip-grid" id="cuisineGrid">
+    <button type="button" class="chip" data-val="italian">Italian</button>
+    <button type="button" class="chip" data-val="mexican">Mexican</button>
+    <button type="button" class="chip" data-val="sushi">Sushi</button>
+    <button type="button" class="chip" data-val="thai">Thai</button>
+    <button type="button" class="chip" data-val="burger">Burgers</button>
+    <button type="button" class="chip" data-val="pizza">Pizza</button>
+    <button type="button" class="chip" data-val="indian">Indian</button>
+    <button type="button" class="chip" data-val="bbq">BBQ</button>
+    <button type="button" class="chip" data-val="ramen">Ramen</button>
+    <button type="button" class="chip" data-val="">Surprise Me</button>
+  </div>
+  <div class="custom-row">
+    <input type="text" id="customCuisine" placeholder="or type your own craving...">
+  </div>
+
+  <div class="section-label">HOW FAR</div>
+  <div class="chip-grid" id="distGrid">
+    <button type="button" class="chip" data-val="1200">Walk</button>
+    <button type="button" class="chip" data-val="8000">Short Drive</button>
+    <button type="button" class="chip" data-val="20000">Anywhere Worth It</button>
+  </div>
+
+  <div class="section-label">LOCATION</div>
+  <div class="loc-row pending" id="locStatus">
+    finding your table... <button id="retryLoc">retry</button>
+  </div>
+
+  <div class="totals">
+    <span id="itemCount">0 items selected</span>
+    <span id="readyState">not ready</span>
+  </div>
+
+  <button type="button" class="send-btn" id="sendBtn" disabled>FIND MY SPOT →</button>
+
+  <div id="resultsArea"></div>
+
+  <div class="foot-note">Powered by OpenStreetMap · free, no account needed</div>
+  <div class="perf bottom"></div>
+</div>
+
+<script>
+let selectedCuisine = null;   // '' means "surprise me" (no filter)
+let cuisineChosen = false;    // whether a chip/custom value was actively picked
+let selectedRadius = null;
+let coords = null;
+
+const dateline = document.getElementById('dateline');
+dateline.textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' }).toUpperCase();
+
+function setupChips(gridId, onSelect){
+  const grid = document.getElementById(gridId);
+  grid.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      grid.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+      chip.classList.add('selected');
+      onSelect(chip.dataset.val);
+    });
+  });
+}
+
+setupChips('cuisineGrid', (val)=>{
+  selectedCuisine = val;
+  cuisineChosen = true;
+  document.getElementById('customCuisine').value = '';
+  updateState();
+});
+
+setupChips('distGrid', (val)=>{
+  selectedRadius = parseInt(val, 10);
+  updateState();
+});
+
+document.getElementById('customCuisine').addEventListener('input', (e)=>{
+  if(e.target.value.trim()){
+    document.querySelectorAll('#cuisineGrid .chip').forEach(c=>c.classList.remove('selected'));
+    selectedCuisine = e.target.value.trim().toLowerCase();
+    cuisineChosen = true;
+  } else {
+    cuisineChosen = false;
+  }
+  updateState();
+});
+
+function updateState(){
+  const count = (cuisineChosen?1:0) + (selectedRadius?1:0);
+  document.getElementById('itemCount').textContent = count + ' item' + (count===1?'':'s') + ' selected';
+  const ready = cuisineChosen && selectedRadius && coords;
+  document.getElementById('readyState').textContent = ready ? 'ready to fire' : 'not ready';
+  document.getElementById('sendBtn').disabled = !ready;
+}
+
+function locateUser(){
+  const locStatus = document.getElementById('locStatus');
+  locStatus.classList.add('pending');
+  locStatus.innerHTML = 'finding your table... <button id="retryLoc">retry</button>';
+  document.getElementById('retryLoc').addEventListener('click', locateUser);
+
+  if(!navigator.geolocation){
+    locStatus.innerHTML = 'geolocation not supported on this browser <button id="retryLoc">retry</button>';
+    document.getElementById('retryLoc').addEventListener('click', locateUser);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      locStatus.classList.remove('pending');
+      locStatus.innerHTML = `table located ✓ (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}) <button id="retryLoc">refresh</button>`;
+      document.getElementById('retryLoc').addEventListener('click', locateUser);
+      updateState();
+    },
+    (err)=>{
+      locStatus.innerHTML = 'location permission denied — enable it in Settings and retry <button id="retryLoc">retry</button>';
+      document.getElementById('retryLoc').addEventListener('click', locateUser);
+    }
+  );
+}
+locateUser();
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2-lat1);
+  const dLng = toRad(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function buildAddress(tags){
+  const parts = [];
+  if(tags['addr:housenumber'] && tags['addr:street']) parts.push(`${tags['addr:housenumber']} ${tags['addr:street']}`);
+  else if(tags['addr:street']) parts.push(tags['addr:street']);
+  if(tags['addr:city']) parts.push(tags['addr:city']);
+  return parts.join(', ');
+}
+
+async function searchRestaurants(){
+  const resultsArea = document.getElementById('resultsArea');
+  const btn = document.getElementById('sendBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'SEARCHING...';
+  resultsArea.innerHTML = `<div class="status-msg">looking around nearby spots...</div>`;
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["amenity"="restaurant"](around:${selectedRadius},${coords.lat},${coords.lng});
+      node["amenity"="fast_food"](around:${selectedRadius},${coords.lat},${coords.lng});
+    );
+    out center 40;
+  `;
+
+  try{
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: query
+    });
+
+    if(!response.ok){
+      throw new Error(`Overpass returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    let places = (data.elements || []).filter(p => p.tags && p.tags.name);
+
+    places.forEach(p=>{
+      p._dist = haversine(coords.lat, coords.lng, p.lat, p.lon);
+    });
+
+    if(selectedCuisine){
+      const needle = selectedCuisine.toLowerCase();
+      const filtered = places.filter(p=>{
+        const cuisine = (p.tags.cuisine || '').toLowerCase();
+        const name = (p.tags.name || '').toLowerCase();
+        return cuisine.includes(needle) || name.includes(needle);
+      });
+      if(filtered.length > 0) places = filtered;
+    }
+
+    places.sort((a,b)=> a._dist - b._dist);
+    places = places.slice(0, 8);
+
+    if(places.length === 0){
+      resultsArea.innerHTML = `<div class="status-msg">no spots found nearby — try widening the distance or a different craving</div>`;
+      btn.disabled = false;
+      btn.textContent = 'FIND MY SPOT →';
+      return;
+    }
+
+    const pick = places[0];
+
+    resultsArea.innerHTML = '<div class="section-label" style="margin-top:20px;">TONIGHT\\'S OPTIONS</div><div class="results" id="resultsList"></div>';
+    const list = document.getElementById('resultsList');
+
+    places.forEach(place=>{
+      const isPick = place === pick;
+      const tags = place.tags;
+      const distMiles = (place._dist / 1609.34).toFixed(1);
+      const address = buildAddress(tags);
+      const cuisine = tags.cuisine ? tags.cuisine.replace(/_/g,' ') : '';
+      const appleMapsUrl = `https://maps.apple.com/?ll=${place.lat},${place.lon}&q=${encodeURIComponent(tags.name)}`;
+      const osmUrl = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=19/${place.lat}/${place.lon}`;
+
+      const card = document.createElement('div');
+      card.className = 'result-card' + (isPick ? ' pick' : '');
+      card.innerHTML = `
+        ${isPick ? '<div class="pick-flag">★ TONIGHT\\'S PICK — closest match</div>' : ''}
+        <div class="result-name">${tags.name}</div>
+        <div class="result-meta">
+          ${distMiles} mi away
+          ${cuisine ? ' · ' + cuisine : ''}<br>
+          ${address || 'address not mapped'}
+          ${tags.phone ? '<br>' + tags.phone : ''}
+        </div>
+        <a class="result-link" href="${appleMapsUrl}" target="_blank">open in Apple Maps →</a>
+        <a class="result-link" href="${osmUrl}" target="_blank">view on map →</a>
+      `;
+      list.appendChild(card);
+    });
+
+  } catch(err){
+    resultsArea.innerHTML = `<div class="status-msg error">Search failed: ${err.message}. The free OpenStreetMap server may be busy — try again in a moment.</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'FIND ANOTHER SPOT →';
+}
+
+document.getElementById('sendBtn').addEventListener('click', searchRestaurants);
+</script>
+
+</body>
+</html>
