@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Dinner Ticket</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --paper: #F4EFE4;
+  --paper-dark: #E8E0CE;
+  --ink: #232019;
+  --ink-soft: #5A5245;
+  --stamp-red: #B23A2C;
+  --ready-green: #4A7856;
+  --line: #C7BCA5;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  margin:0;
+  background: #1c1a16;
+  font-family: 'Inter', sans-serif;
+  color: var(--ink);
+  display:flex;
+  justify-content:center;
+  padding: 24px 12px 60px;
+  min-height: 100vh;
+}
+
+.ticket{
+  width: 100%;
+  max-width: 420px;
+  background: var(--paper);
+  position: relative;
+  padding: 28px 26px 30px;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  background-image:
+    repeating-linear-gradient(180deg, rgba(35,32,25,0.025) 0px, rgba(35,32,25,0.025) 1px, transparent 1px, transparent 26px);
+}
+
+.perf{
+  position:absolute;
+  left:0; right:0;
+  height:12px;
+  background:
+    radial-gradient(circle, transparent 5px, var(--paper) 5.5px) 0 50% / 20px 20px repeat-x;
+}
+.perf.top{ top:-6px; }
+.perf.bottom{ bottom:-6px; transform: rotate(180deg); }
+
+.header{
+  text-align:center;
+  border-bottom: 2px dashed var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.title{
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 44px;
+  line-height: 0.9;
+  letter-spacing: 1px;
+  margin: 2px 0 6px;
+}
+.subtitle{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.section-label{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--stamp-red);
+  margin: 18px 0 8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.section-label::after{
+  content:'';
+  flex:1;
+  border-bottom: 1px dotted var(--line);
+}
+
+.chip-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}
+.chip{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 13px;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor:pointer;
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+.chip:hover{ background: rgba(35,32,25,0.06); }
+.chip.selected{
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.custom-row{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+}
+.custom-row input{
+  flex:1;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--line);
+  background: var(--paper-dark);
+  color: var(--ink);
+  border-radius:2px;
+}
+.custom-row input:focus{ outline: none; border-color: var(--ink); }
+
+.loc-row{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--paper-dark);
+  border-left: 3px solid var(--ready-green);
+  min-height: 16px;
+}
+.loc-row.pending{ border-left-color: var(--stamp-red); }
+.loc-row button{
+  background:none;
+  border:none;
+  text-decoration: underline;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--ink);
+  cursor:pointer;
+  padding:0;
+  margin-left: 6px;
+}
+
+.totals{
+  border-top: 2px dashed var(--line);
+  margin-top: 20px;
+  padding-top: 14px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  display:flex;
+  justify-content: space-between;
+}
+
+.send-btn{
+  width:100%;
+  margin-top: 18px;
+  padding: 15px;
+  background: var(--stamp-red);
+  color: var(--paper);
+  border: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+  transform: rotate(-0.4deg);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.send-btn:hover{ transform: rotate(0deg) scale(1.01); background: #9A3125; }
+.send-btn:disabled{ background: var(--line); color: var(--ink-soft); cursor: not-allowed; transform:none; }
+
+.foot-note{
+  text-align:center;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  margin-top: 14px;
+  letter-spacing: 1px;
+}
+
+.results{
+  margin-top: 18px;
+}
+.result-card{
+  border: 1.5px solid var(--ink);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--paper-dark);
+  position: relative;
+}
+.result-card.pick{
+  border-color: var(--ready-green);
+  border-width: 2px;
+}
+.pick-flag{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--ready-green);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.result-name{
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.result-meta{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.result-link{
+  display:inline-block;
+  margin-top: 6px;
+  margin-right: 12px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--stamp-red);
+  text-decoration: none;
+  border-bottom: 1px solid var(--stamp-red);
+}
+
+.status-msg{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+  margin-top: 14px;
+  padding: 10px;
+}
+.status-msg.error{
+  color: var(--stamp-red);
+  border: 1px dashed var(--stamp-red);
+}
+</style>
+</head>
+<body>
+
+<div class="ticket" id="ticket">
+  <div class="perf top"></div>
+
+  <div class="header">
+    <div class="eyebrow">TONIGHT'S PICK · TABLE FOR YOU</div>
+    <div class="title">DINNER TICKET</div>
+    <div class="subtitle" id="dateline"></div>
+  </div>
+
+  <div class="section-label">CRAVING (pick one or more)</div>
+  <div class="chip-grid" id="cuisineGrid">
+    <button type="button" class="chip" data-val="italian">Italian</button>
+    <button type="button" class="chip" data-val="mexican">Mexican</button>
+    <button type="button" class="chip" data-val="sushi">Sushi</button>
+    <button type="button" class="chip" data-val="thai">Thai</button>
+    <button type="button" class="chip" data-val="burger">Burgers</button>
+    <button type="button" class="chip" data-val="pizza">Pizza</button>
+    <button type="button" class="chip" data-val="indian">Indian</button>
+    <button type="button" class="chip" data-val="bbq">BBQ</button>
+    <button type="button" class="chip" data-val="ramen">Ramen</button>
+    <button type="button" class="chip" data-val="">Surprise Me</button>
+  </div>
+  <div class="custom-row">
+    <input type="text" id="customCuisine" placeholder="or type your own craving...">
+  </div>
+
+  <div class="section-label">HOW FAR</div>
+  <div class="chip-grid" id="distGrid">
+    <button type="button" class="chip" data-val="850">Walk (~10 min)</button>
+    <button type="button" class="chip" data-val="13000">Short Drive (15-20 min)</button>
+    <button type="button" class="chip" data-val="20000">Anywhere Worth It</button>
+  </div>
+
+  <div class="section-label">LOCATION</div>
+  <div class="loc-row pending" id="locStatus">
+    finding your table... <button id="retryLoc">retry</button>
+  </div>
+
+  <div class="totals">
+    <span id="itemCount">0 items selected</span>
+    <span id="readyState">not ready</span>
+  </div>
+
+  <button type="button" class="send-btn" id="sendBtn" disabled>FIND MY SPOT →</button>
+
+  <div id="resultsArea"></div>
+
+  <div class="foot-note">Powered by OpenStreetMap · free, no account needed</div>
+  <div class="perf bottom"></div>
+</div>
+
+<script>
+let selectedCuisines = new Set();  // multi-select cravings
+let surpriseMode = false;
+let customCuisineVal = '';
+let selectedRadius = null;
+let coords = null;
+let currentPlaces = [];
+let currentWheelRotation = 0;
+
+const dateline = document.getElementById('dateline');
+dateline.textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' }).toUpperCase();
+
+// --- Craving grid: multi-select, with "Surprise Me" acting as an exclusive "clear filters" choice ---
+const cuisineGrid = document.getElementById('cuisineGrid');
+cuisineGrid.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const val = chip.dataset.val;
+
+    if(val === ''){ // Surprise Me — exclusive, clears everything else
+      surpriseMode = !surpriseMode;
+      if(surpriseMode){
+        selectedCuisines.clear();
+        cuisineGrid.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+        document.getElementById('customCuisine').value = '';
+        customCuisineVal = '';
+      } else {
+        chip.classList.remove('selected');
+      }
+    } else {
+      surpriseMode = false;
+      cuisineGrid.querySelector('.chip[data-val=""]').classList.remove('selected');
+      if(selectedCuisines.has(val)){
+        selectedCuisines.delete(val);
+        chip.classList.remove('selected');
+      } else {
+        selectedCuisines.add(val);
+        chip.classList.add('selected');
+      }
+    }
+    updateState();
+  });
+});
+
+document.getElementById('customCuisine').addEventListener('input', (e)=>{
+  customCuisineVal = e.target.value.trim().toLowerCase();
+  if(customCuisineVal){
+    surpriseMode = false;
+    cuisineGrid.querySelector('.chip[data-val=""]').classList.remove('selected');
+  }
+  updateState();
+});
+
+// --- Distance grid: single-select, unchanged ---
+function setupChips(gridId, onSelect){
+  const grid = document.getElementById(gridId);
+  grid.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      grid.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
+      chip.classList.add('selected');
+      onSelect(chip.dataset.val);
+    });
+  });
+}
+
+setupChips('distGrid', (val)=>{
+  selectedRadius = parseInt(val, 10);
+  updateState();
+});
+
+function getActiveCravings(){
+  // returns array of craving strings to match, or [] meaning "no filter" (surprise me / nothing picked)
+  const list = [...selectedCuisines];
+  if(customCuisineVal) list.push(customCuisineVal);
+  return list;
+}
+
+function updateState(){
+  const cravingCount = surpriseMode ? 1 : getActiveCravings().length;
+  const count = cravingCount + (selectedRadius?1:0);
+  document.getElementById('itemCount').textContent = count + ' item' + (count===1?'':'s') + ' selected';
+  const cuisineReady = surpriseMode || getActiveCravings().length > 0;
+  const ready = cuisineReady && selectedRadius && coords;
+  document.getElementById('readyState').textContent = ready ? 'ready to fire' : 'not ready';
+  document.getElementById('sendBtn').disabled = !ready;
+}
+
+function locateUser(){
+  const locStatus = document.getElementById('locStatus');
+  locStatus.classList.add('pending');
+  locStatus.innerHTML = 'finding your table... <button id="retryLoc">retry</button>';
+  document.getElementById('retryLoc').addEventListener('click', locateUser);
+
+  if(!navigator.geolocation){
+    locStatus.innerHTML = 'geolocation not supported on this browser <button id="retryLoc">retry</button>';
+    document.getElementById('retryLoc').addEventListener('click', locateUser);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      locStatus.classList.remove('pending');
+      locStatus.innerHTML = `table located ✓ (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}) <button id="retryLoc">refresh</button>`;
+      document.getElementById('retryLoc').addEventListener('click', locateUser);
+      updateState();
+    },
+    (err)=>{
+      locStatus.innerHTML = 'location permission denied — enable it in Settings and retry <button id="retryLoc">retry</button>';
+      document.getElementById('retryLoc').addEventListener('click', locateUser);
+    }
+  );
+}
+locateUser();
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2-lat1);
+  const dLng = toRad(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function buildAddress(tags){
+  const parts = [];
+  if(tags['addr:housenumber'] && tags['addr:street']) parts.push(`${tags['addr:housenumber']} ${tags['addr:street']}`);
+  else if(tags['addr:street']) parts.push(tags['addr:street']);
+  if(tags['addr:city']) parts.push(tags['addr:city']);
+  return parts.join(', ');
+}
+
+async function searchRestaurants(){
+  const resultsArea = document.getElementById('resultsArea');
+  const btn = document.getElementById('sendBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'SEARCHING...';
+  resultsArea.innerHTML = `<div class="status-msg">looking around nearby spots...</div>`;
+
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["amenity"="restaurant"](around:${selectedRadius},${coords.lat},${coords.lng});
+    );
+    out center 60;
+  `;
+
+  try{
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: query
+    });
+
+    if(!response.ok){
+      throw new Error(`Overpass returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    let places = (data.elements || []).filter(p => p.tags && p.tags.name);
+
+    const chainBlocklist = [
+      'mcdonald', 'burger king', 'wendy', 'taco bell', 'kfc', 'popeyes',
+      'chick-fil-a', 'chickfila', 'subway', 'domino', 'pizza hut', 'papa john',
+      'arby', 'sonic drive', 'jack in the box', 'dairy queen', 'chipotle',
+      'panda express', 'panera', 'five guys', 'in-n-out', 'in n out',
+      'whataburger', 'culver', 'hardee', 'carl' + String.fromCharCode(39) + 's jr', 'jimmy john',
+      'little caesars', 'white castle', 'del taco', 'raising cane',
+      'zaxby', 'bojangles', 'checkers', 'rally' + String.fromCharCode(39) + 's', 'long john silver'
+    ];
+    places = places.filter(p=>{
+      const name = (p.tags.name || '').toLowerCase();
+      return !chainBlocklist.some(chain => name.includes(chain));
+    });
+
+    places.forEach(p=>{
+      p._dist = haversine(coords.lat, coords.lng, p.lat, p.lon);
+    });
+
+    const activeCravings = getActiveCravings();
+    if(!surpriseMode && activeCravings.length > 0){
+      places = places.filter(p=>{
+        const cuisine = (p.tags.cuisine || '').toLowerCase();
+        const name = (p.tags.name || '').toLowerCase();
+        return activeCravings.some(needle => cuisine.includes(needle) || name.includes(needle));
+      });
+    }
+
+    if(!surpriseMode && activeCravings.length > 0 && places.length === 0){
+      resultsArea.innerHTML = `<div class="status-msg">no ${activeCravings.join(' / ')} spots tagged nearby in OpenStreetMap's data — try "Anywhere Worth It" for distance, or a different craving. (Rural/small-town areas often have sparser cuisine tagging.)</div>`;
+      btn.disabled = false;
+      btn.textContent = 'FIND MY SPOT →';
+      return;
+    }
+
+    places.sort((a,b)=> a._dist - b._dist);
+    places = places.slice(0, 8);
+
+    if(places.length === 0){
+      resultsArea.innerHTML = `<div class="status-msg">no spots found nearby — try widening the distance or a different craving</div>`;
+      btn.disabled = false;
+      btn.textContent = 'FIND MY SPOT →';
+      return;
+    }
+
+    const pick = places[0];
+    currentPlaces = places;
+
+    resultsArea.innerHTML = `
+      <div class="section-label" style="margin-top:20px;">TONIGHT'S OPTIONS</div>
+      <div class="results" id="resultsList"></div>
+      <button type="button" class="send-btn" id="spinBtn" style="background:var(--ready-green); margin-top:8px;">🎡 SPIN FOR RANDOM PICK</button>
+      <div id="wheelArea" style="margin-top:16px; display:flex; justify-content:center;"></div>
+      <div class="status-msg" id="spinResult" style="display:none;"></div>
+    `;
+    const list = document.getElementById('resultsList');
+
+    places.forEach((place, i)=>{
+      const isPick = place === pick;
+      const tags = place.tags;
+      const distMiles = (place._dist / 1609.34).toFixed(1);
+      const address = buildAddress(tags);
+      const cuisine = tags.cuisine ? tags.cuisine.replace(/_/g,' ') : '';
+      const appleMapsUrl = `https://maps.apple.com/?ll=${place.lat},${place.lon}&q=${encodeURIComponent(tags.name)}`;
+      const osmUrl = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=19/${place.lat}/${place.lon}`;
+
+      const card = document.createElement('div');
+      card.className = 'result-card' + (isPick ? ' pick' : '');
+      card.id = `card-${i}`;
+      card.innerHTML = `
+        <div class="pick-flag" style="display:${isPick ? 'block' : 'none'};">★ TONIGHT'S PICK</div>
+        <div class="result-name">#${i+1} ${tags.name}</div>
+        <div class="result-meta">
+          ${distMiles} mi away
+          ${cuisine ? ' · ' + cuisine : ''}<br>
+          ${address || 'address not mapped'}
+          ${tags.phone ? '<br>' + tags.phone : ''}
+        </div>
+        <a class="result-link" href="${appleMapsUrl}" target="_blank">open in Apple Maps →</a>
+        <a class="result-link" href="${osmUrl}" target="_blank">view on map →</a>
+      `;
+      list.appendChild(card);
+    });
+
+    buildWheel(places.length);
+    document.getElementById('spinBtn').addEventListener('click', spinWheel);
+
+  } catch(err){
+    resultsArea.innerHTML = `<div class="status-msg error">Search failed: ${err.message}. The free OpenStreetMap server may be busy — try again in a moment.</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'FIND ANOTHER SPOT →';
+}
+
+document.getElementById('sendBtn').addEventListener('click', searchRestaurants);
+
+function polarToCartesian(cx, cy, r, angleDeg){
+  const a = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+}
+
+function describeSlice(cx, cy, r, startAngle, endAngle){
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArc = (endAngle - startAngle) <= 180 ? '0' : '1';
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+}
+
+const wheelColors = ['#B23A2C', '#4A7856', '#8B6F47', '#5A5245', '#C9873E', '#6E7F5C'];
+
+function buildWheel(n){
+  const wheelArea = document.getElementById('wheelArea');
+  const size = 260;
+  const cx = size/2, cy = size/2, r = size/2 - 6;
+  const segAngle = 360 / n;
+
+  let slicesHtml = '';
+  for(let i=0; i<n; i++){
+    const startAngle = i * segAngle;
+    const endAngle = (i+1) * segAngle;
+    const midAngle = startAngle + segAngle/2;
+    const labelPos = polarToCartesian(cx, cy, r*0.62, midAngle);
+    const color = wheelColors[i % wheelColors.length];
+    slicesHtml += `<path d="${describeSlice(cx, cy, r, startAngle, endAngle)}" fill="${color}" stroke="var(--paper)" stroke-width="2"/>`;
+    slicesHtml += `<text x="${labelPos.x}" y="${labelPos.y}" fill="var(--paper)" font-family="IBM Plex Mono, monospace" font-size="18" font-weight="600" text-anchor="middle" dominant-baseline="middle">${i+1}</text>`;
+  }
+
+  wheelArea.innerHTML = `
+    <div style="position:relative; width:${size}px;">
+      <div style="position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-top:18px solid var(--stamp-red); z-index:2;"></div>
+      <svg id="wheelSvg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="transition: transform 3.2s cubic-bezier(0.15, 0.7, 0.1, 1); transform: rotate(${currentWheelRotation}deg); display:block;">
+        ${slicesHtml}
+      </svg>
+    </div>
+  `;
+}
+
+function spinWheel(){
+  const n = currentPlaces.length;
+  if(n === 0) return;
+
+  const spinBtn = document.getElementById('spinBtn');
+  const spinResult = document.getElementById('spinResult');
+  spinBtn.disabled = true;
+  spinBtn.textContent = 'SPINNING...';
+  spinResult.style.display = 'none';
+
+  const segAngle = 360 / n;
+  const chosenIndex = Math.floor(Math.random() * n);
+  const segmentCenter = chosenIndex * segAngle + segAngle/2;
+
+  // small random jitter within the segment so it doesn't always land dead-center
+  const jitter = (Math.random() - 0.5) * (segAngle * 0.5);
+  const targetWithinSpin = (360 - segmentCenter - jitter + 360) % 360;
+
+  const extraSpins = 5 + Math.floor(Math.random()*2); // 5-6 full spins
+  const currentMod = ((currentWheelRotation % 360) + 360) % 360;
+  const delta = ((targetWithinSpin - currentMod) + 360) % 360;
+  currentWheelRotation += extraSpins * 360 + delta;
+
+  const svg = document.getElementById('wheelSvg');
+  svg.style.transform = `rotate(${currentWheelRotation}deg)`;
+
+  setTimeout(()=>{
+    // clear all pick flags, set the chosen one
+    currentPlaces.forEach((p, i)=>{
+      const card = document.getElementById(`card-${i}`);
+      if(!card) return;
+      const flag = card.querySelector('.pick-flag');
+      if(i === chosenIndex){
+        card.classList.add('pick');
+        flag.style.display = 'block';
+        flag.textContent = '★ THE WHEEL HAS SPOKEN';
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        card.classList.remove('pick');
+        flag.style.display = 'none';
+      }
+    });
+    spinResult.style.display = 'block';
+    spinResult.textContent = `🎡 landed on #${chosenIndex+1}: ${currentPlaces[chosenIndex].tags.name}`;
+    spinBtn.disabled = false;
+    spinBtn.textContent = '🎡 SPIN AGAIN';
+  }, 3300);
+}
+</script>
+
+</body>
+</html>
