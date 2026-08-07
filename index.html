@@ -8,6 +8,15 @@
 <meta http-equiv="Expires" content="0">
 <title>Dinner Ticket</title>
 <link rel="stylesheet" href="style.css">
+<script>
+window.addEventListener('error', function(e){
+  var banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#B23A2C;color:#fff;padding:12px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;line-height:1.5;';
+  var fileName = e.filename ? e.filename.split('/').pop() : 'unknown file';
+  banner.textContent = 'JS ERROR: ' + e.message + '\n(in ' + fileName + ', line ' + e.lineno + ', column ' + e.colno + ')';
+  document.body.appendChild(banner);
+});
+</script>
 </head>
 <body>
 
