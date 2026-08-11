@@ -13,8 +13,26 @@ let currentWheelRotation = 0;
 let cravingWheelRotation = 0;
 const wheelColors = ['#B23A2C', '#4A7856', '#8B6F47', '#5A5245', '#C9873E', '#6E7F5C'];
 
+let soundEnabled = true;
+try {
+  const savedSound = localStorage.getItem('dinnerTicket_sound_v1');
+  if (savedSound !== null) soundEnabled = savedSound === 'on';
+} catch (e) { /* ignore */ }
+
 const RADIUS_TIERS = [850, 13000, 20000];
 const RADIUS_LABELS = { 850: 'walking distance', 13000: 'a short drive', 20000: 'the widest search radius' };
+
+// "Diner Style" is an original homage filter (not affiliated with any TV show) —
+// it matches classic diner/drive-in/greasy-spoon spots via OSM's own tags
+// rather than a single exact cuisine value.
+const DINER_STYLE_KEYWORDS = ['diner', 'drive-in', 'drive in', 'grill', 'luncheonette', 'american'];
+
+function matchesCraving(needle, cuisine, name){
+  if (needle === 'diner') {
+    return DINER_STYLE_KEYWORDS.some(kw => cuisine.includes(kw) || name.includes(kw));
+  }
+  return cuisine.includes(needle) || name.includes(needle);
+}
 
 const STORAGE_STATE_KEY = 'dinnerTicket_state_v1';
 const STORAGE_EXCLUDED_KEY = 'dinnerTicket_excluded_v1';
@@ -47,6 +65,28 @@ function saveState(){
 
 function describeRadius(r){
   return RADIUS_LABELS[r] || ((r / 1000).toFixed(1) + 'km');
+}
+
+const STORAGE_LAST_RESULTS_KEY = 'dinnerTicket_lastResults_v1';
+
+function saveLastResults(places, usedRadius){
+  try {
+    localStorage.setItem(STORAGE_LAST_RESULTS_KEY, JSON.stringify({
+      places,
+      usedRadius,
+      timestamp: Date.now()
+    }));
+  } catch (e) { /* ignore — results just won't be recoverable offline */ }
+}
+
+function loadLastResults(){
+  try {
+    const raw = localStorage.getItem(STORAGE_LAST_RESULTS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
 }
 
 // ============================================================
@@ -182,6 +222,7 @@ function locateUser(){
       locStatus.innerHTML = `table located ✓ (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}) <button id="retryLoc">refresh</button>`;
       document.getElementById('retryLoc').addEventListener('click', locateUser);
       updateState();
+      checkWeatherHint(coords.lat, coords.lng);
     },
     (err) => {
       locStatus.innerHTML = 'location permission denied — enable it in Settings and retry <button id="retryLoc">retry</button>';
@@ -190,6 +231,41 @@ function locateUser(){
   );
 }
 locateUser();
+
+async function checkWeatherHint(lat, lng){
+  const hintEl = document.getElementById('weatherHint');
+  if (!hintEl) return;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=precipitation,weather_code,temperature_2m`;
+    const response = await fetch(url);
+    if (!response.ok) return; // fail silently — this is a nice-to-have, not core functionality
+    const data = await response.json();
+    const current = data.current;
+    if (!current) return;
+
+    const precip = current.precipitation || 0;
+    const code = current.weather_code;
+    const isStormy = [95, 96, 99].includes(code);
+    const isSnowing = [71, 73, 75, 77, 85, 86].includes(code);
+    const isRaining = precip > 0 || [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code);
+
+    let message = null;
+    if (isStormy) {
+      message = '⛈️ thunderstorms right now — probably a short drive over a walk tonight';
+    } else if (isSnowing) {
+      message = '❄️ snowing right now — walking might not be fun, consider a drive';
+    } else if (isRaining) {
+      message = '🌧️ it\u2019s raining right now — might want to skip the walk option';
+    }
+
+    if (message) {
+      hintEl.textContent = message;
+      hintEl.style.display = 'block';
+    }
+  } catch (e) {
+    // Weather check is a bonus feature — never let it break the core app
+  }
+}
 
 function haversine(lat1, lng1, lat2, lng2){
   const R = 6371000;
@@ -323,7 +399,7 @@ async function searchRestaurants(){
         filtered = raw.filter(p => {
           const cuisine = (p.tags.cuisine || '').toLowerCase();
           const name = (p.tags.name || '').toLowerCase();
-          return activeCravings.some(needle => cuisine.includes(needle) || name.includes(needle));
+          return activeCravings.some(needle => matchesCraving(needle, cuisine, name));
         });
       }
 
@@ -334,6 +410,19 @@ async function searchRestaurants(){
       }
     }
   } catch (err) {
+    const cached = loadLastResults();
+    if (cached && cached.places && cached.places.length > 0) {
+      currentPlaces = cached.places;
+      currentPlaces.forEach(p => { if (typeof p._dist !== 'number') p._dist = 0; });
+      currentPick = currentPlaces[0];
+      currentSortMode = 'distance';
+      const ageMins = Math.round((Date.now() - cached.timestamp) / 60000);
+      const ageText = ageMins < 1 ? 'moments ago' : ageMins === 1 ? '1 minute ago' : `${ageMins} minutes ago`;
+      renderResultsArea(false, cached.usedRadius, `couldn't reach OpenStreetMap just now — showing your last saved results from ${ageText} instead`);
+      btn.disabled = false;
+      btn.textContent = 'FIND MY SPOT →';
+      return;
+    }
     resultsArea.innerHTML = `<div class="status-msg error" role="alert">Search failed: ${err.message}. The free OpenStreetMap server may be busy — try again in a moment.</div>`;
     btn.disabled = false;
     btn.textContent = 'FIND MY SPOT →';
@@ -355,6 +444,7 @@ async function searchRestaurants(){
   currentPlaces = places;
   currentPick = places[0];
   currentSortMode = 'distance';
+  saveLastResults(places, usedRadius);
 
   renderResultsArea(widened, usedRadius);
 
@@ -367,11 +457,13 @@ document.getElementById('sendBtn').addEventListener('click', searchRestaurants);
 // ============================================================
 // RESULTS RENDERING (sort toggle + exclude button)
 // ============================================================
-function renderResultsArea(widened, usedRadius){
+function renderResultsArea(widened, usedRadius, customMessage){
   const resultsArea = document.getElementById('resultsArea');
-  const widenNote = widened
-    ? `<div class="status-msg" role="status" aria-live="polite">widened the search to ${describeRadius(usedRadius)} since nothing matched closer</div>`
-    : '';
+  const widenNote = customMessage
+    ? `<div class="status-msg error" role="status" aria-live="polite">${customMessage}</div>`
+    : widened
+      ? `<div class="status-msg" role="status" aria-live="polite">widened the search to ${describeRadius(usedRadius)} since nothing matched closer</div>`
+      : '';
 
   resultsArea.innerHTML = `
     ${widenNote}
@@ -437,6 +529,7 @@ function renderResultsList(){
     card.id = `card-${i}`;
     card.innerHTML = `
       <button type="button" class="exclude-btn" data-idx="${i}" title="Not tonight — hide this spot" aria-label="Hide ${tags.name} from future searches">✕</button>
+      <button type="button" class="share-btn" data-idx="${i}" title="Share this spot" aria-label="Share ${tags.name}">📤</button>
       <div class="pick-flag" style="display:${isPick ? 'block' : 'none'};">★ TONIGHT'S PICK</div>
       <div class="result-name">#${i + 1} ${tags.name}</div>
       <div class="result-meta">
@@ -451,6 +544,12 @@ function renderResultsList(){
     list.appendChild(card);
   });
 
+  list.querySelectorAll('.share-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sharePlace(currentPlaces[parseInt(btn.dataset.idx, 10)]);
+    });
+  });
+
   list.querySelectorAll('.exclude-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       excludePlace(parseInt(btn.dataset.idx, 10));
@@ -459,6 +558,34 @@ function renderResultsList(){
 
   currentWheelRotation = 0;
   buildWheel(currentPlaces.length);
+}
+
+async function sharePlace(place){
+  if (!place) return;
+  const tags = place.tags;
+  const address = buildAddress(tags);
+  const appleMapsUrl = `https://maps.apple.com/?ll=${place.lat},${place.lon}&q=${encodeURIComponent(tags.name)}`;
+  const text = `Tonight's pick: ${tags.name}${address ? ' — ' + address : ''}\n${appleMapsUrl}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: tags.name, text: text, url: appleMapsUrl });
+    } catch (e) {
+      // user canceled the share sheet — not an error, do nothing
+    }
+    return;
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      const banner = document.createElement('div');
+      banner.textContent = '📋 copied to clipboard';
+      banner.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--paper); padding:8px 16px; border-radius:4px; font-family:\'IBM Plex Mono\', monospace; font-size:12px; z-index:9999;';
+      document.body.appendChild(banner);
+      setTimeout(() => banner.remove(), 2000);
+    } catch (e) { /* clipboard blocked — nothing more we can do */ }
+  }
 }
 
 function excludePlace(idx){
@@ -648,12 +775,6 @@ function describeSlice(cx, cy, r, startAngle, endAngle){
 // ============================================================
 // WHEEL SOUND EFFECTS (Web Audio API, no external files)
 // ============================================================
-let soundEnabled = true;
-try {
-  const savedSound = localStorage.getItem('dinnerTicket_sound_v1');
-  if (savedSound !== null) soundEnabled = savedSound === 'on';
-} catch (e) { /* ignore */ }
-
 function ensureAudioContext(){
   if (!window._dinnerAudioCtx) {
     const AC = window.AudioContext || window.webkitAudioContext;
