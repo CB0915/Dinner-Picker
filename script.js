@@ -425,18 +425,26 @@ async function fetchGooglePlaces(radius){
   return places;
 }
 
+let lastGoogleError = null;
+
 async function fetchPlacesAtRadius(radius){
   let places;
   const hasGoogleKey = GOOGLE_API_KEY && GOOGLE_API_KEY !== 'YOUR_API_KEY_HERE';
+  lastGoogleError = null;
 
   if (hasGoogleKey) {
     try {
       places = await fetchGooglePlaces(radius);
       lastSourceUsed = 'google';
     } catch (err) {
+      lastGoogleError = err.message;
       console.warn('Google Places failed, falling back to OpenStreetMap:', err.message);
-      places = await fetchOSMPlaces(radius);
-      lastSourceUsed = 'osm-fallback';
+      try {
+        places = await fetchOSMPlaces(radius);
+        lastSourceUsed = 'osm-fallback';
+      } catch (osmErr) {
+        throw new Error(`Google failed (${lastGoogleError}) AND the OpenStreetMap fallback failed (${osmErr.message})`);
+      }
     }
   } else {
     places = await fetchOSMPlaces(radius);
@@ -566,7 +574,7 @@ function renderResultsArea(widened, usedRadius, customMessage){
   const sourceLabel = lastSourceUsed === 'google'
     ? 'via Google Places'
     : lastSourceUsed === 'osm-fallback'
-      ? 'via OpenStreetMap (Google unavailable right now)'
+      ? `via OpenStreetMap (Google failed: ${lastGoogleError || 'unknown error'})`
       : 'via OpenStreetMap';
 
   resultsArea.innerHTML = `
