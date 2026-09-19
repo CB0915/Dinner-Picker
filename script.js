@@ -277,6 +277,7 @@ function haversine(lat1, lng1, lat2, lng2){
 }
 
 function buildAddress(tags){
+  if (tags.formatted_address) return tags.formatted_address;
   const parts = [];
   if (tags['addr:housenumber'] && tags['addr:street']) parts.push(`${tags['addr:housenumber']} ${tags['addr:street']}`);
   else if (tags['addr:street']) parts.push(tags['addr:street']);
@@ -285,8 +286,15 @@ function buildAddress(tags){
 }
 
 // ============================================================
-// SEARCH (with auto-widen and exclude filtering)
+// SEARCH (Google Places first, OpenStreetMap fallback, auto-widen, exclude filtering)
 // ============================================================
+
+// Paste your Google Places API (New) key below. Leave as-is to search
+// OpenStreetMap only — the app works either way.
+const GOOGLE_API_KEY = "AIzaSyC9-y9IOfhuXmROF9D1duQA7T7lM57NnN8";
+
+let lastSourceUsed = 'osm';
+
 const CHAIN_BLOCKLIST = [
   'mcdonald', 'burger king', 'wendy', 'taco bell', 'kfc', 'popeyes',
   'chick-fil-a', 'chickfila', 'subway', 'domino', 'pizza hut', 'papa john',
@@ -312,7 +320,17 @@ function getFullBlocklist(){
   return CHAIN_BLOCKLIST.concat(customBlocklist);
 }
 
-async function fetchPlacesAtRadius(radius){
+function applyCommonFilters(places){
+  const blocklist = getFullBlocklist();
+  let filtered = places.filter(p => {
+    const name = (p.tags.name || '').toLowerCase();
+    return !blocklist.some(chain => name.includes(chain));
+  });
+  filtered = filtered.filter(p => !excludedMap.has(`${p.type}/${p.id}`));
+  return filtered;
+}
+
+async function fetchOSMPlaces(radius){
   const query = `
     [out:json][timeout:25];
     (
@@ -332,21 +350,100 @@ async function fetchPlacesAtRadius(radius){
   }
 
   const data = await response.json();
-  let places = (data.elements || []).filter(p => p.tags && p.tags.name);
-
-  const blocklist = getFullBlocklist();
-  places = places.filter(p => {
-    const name = (p.tags.name || '').toLowerCase();
-    return !blocklist.some(chain => name.includes(chain));
-  });
-
-  places = places.filter(p => !excludedMap.has(`${p.type}/${p.id}`));
+  const places = (data.elements || []).filter(p => p.tags && p.tags.name);
 
   places.forEach(p => {
     p._dist = haversine(coords.lat, coords.lng, p.lat, p.lon);
   });
 
   return places;
+}
+
+const GOOGLE_PRICE_MAP = {
+  PRICE_LEVEL_FREE: '',
+  PRICE_LEVEL_INEXPENSIVE: '$',
+  PRICE_LEVEL_MODERATE: '$$',
+  PRICE_LEVEL_EXPENSIVE: '$$$',
+  PRICE_LEVEL_VERY_EXPENSIVE: '$$$$'
+};
+
+async function fetchGooglePlaces(radius){
+  const activeCravings = getActiveCravings();
+  const queryText = (!surpriseMode && activeCravings.length > 0)
+    ? activeCravings.join(' ') + ' restaurants'
+    : 'restaurants';
+
+  const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GOOGLE_API_KEY,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.currentOpeningHours.openNow,places.internationalPhoneNumber,places.googleMapsUri'
+    },
+    body: JSON.stringify({
+      textQuery: queryText,
+      locationBias: {
+        circle: {
+          center: { latitude: coords.lat, longitude: coords.lng },
+          radius: radius
+        }
+      },
+      maxResultCount: 20,
+      rankPreference: 'DISTANCE'
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Google Places error ${response.status}: ${errText.slice(0, 150)}`);
+  }
+
+  const data = await response.json();
+  const places = (data.places || []).map(p => {
+    const lat = p.location ? p.location.latitude : coords.lat;
+    const lon = p.location ? p.location.longitude : coords.lng;
+    return {
+      type: 'google',
+      id: p.id,
+      lat: lat,
+      lon: lon,
+      tags: {
+        name: p.displayName ? p.displayName.text : 'Unnamed spot',
+        formatted_address: p.formattedAddress || '',
+        phone: p.internationalPhoneNumber || '',
+        rating: p.rating || null,
+        userRatingCount: p.userRatingCount || 0,
+        priceLevel: p.priceLevel ? (GOOGLE_PRICE_MAP[p.priceLevel] || '') : '',
+        openNow: p.currentOpeningHours ? p.currentOpeningHours.openNow : null,
+        googleMapsUri: p.googleMapsUri || '',
+        source: 'google'
+      },
+      _dist: haversine(coords.lat, coords.lng, lat, lon)
+    };
+  }).filter(p => p.tags.name);
+
+  return places;
+}
+
+async function fetchPlacesAtRadius(radius){
+  let places;
+  const hasGoogleKey = GOOGLE_API_KEY && GOOGLE_API_KEY !== 'YOUR_API_KEY_HERE';
+
+  if (hasGoogleKey) {
+    try {
+      places = await fetchGooglePlaces(radius);
+      lastSourceUsed = 'google';
+    } catch (err) {
+      console.warn('Google Places failed, falling back to OpenStreetMap:', err.message);
+      places = await fetchOSMPlaces(radius);
+      lastSourceUsed = 'osm-fallback';
+    }
+  } else {
+    places = await fetchOSMPlaces(radius);
+    lastSourceUsed = 'osm';
+  }
+
+  return applyCommonFilters(places);
 }
 
 function showLoadingStatus(text){
@@ -395,7 +492,8 @@ async function searchRestaurants(){
       }
 
       let filtered = raw;
-      if (!surpriseMode && activeCravings.length > 0) {
+      const skipClientFilter = lastSourceUsed === 'google'; // Google already applied the craving via its own query text
+      if (!surpriseMode && activeCravings.length > 0 && !skipClientFilter) {
         filtered = raw.filter(p => {
           const cuisine = (p.tags.cuisine || '').toLowerCase();
           const name = (p.tags.name || '').toLowerCase();
@@ -465,6 +563,12 @@ function renderResultsArea(widened, usedRadius, customMessage){
       ? `<div class="status-msg" role="status" aria-live="polite">widened the search to ${describeRadius(usedRadius)} since nothing matched closer</div>`
       : '';
 
+  const sourceLabel = lastSourceUsed === 'google'
+    ? 'via Google Places'
+    : lastSourceUsed === 'osm-fallback'
+      ? 'via OpenStreetMap (Google unavailable right now)'
+      : 'via OpenStreetMap';
+
   resultsArea.innerHTML = `
     ${widenNote}
     <div class="section-label" style="margin-top:20px;">
@@ -474,6 +578,7 @@ function renderResultsArea(widened, usedRadius, customMessage){
         <button type="button" class="small-btn" id="sortAlphaBtn">a-z</button>
       </span>
     </div>
+    <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--ink-soft); margin-top:-6px; margin-bottom:10px;">${sourceLabel}</div>
     <div class="results" id="resultsList"></div>
     <button type="button" class="send-btn" id="wheelToggleBtn" style="background:transparent; color:var(--stamp-red); border:1.5px solid var(--stamp-red); margin-top:8px;">🎡 SPIN FOR RANDOM PICK</button>
     <div id="wheelWrapper" style="display:none;">
@@ -522,7 +627,15 @@ function renderResultsList(){
     const address = buildAddress(tags);
     const cuisine = tags.cuisine ? tags.cuisine.replace(/_/g, ' ') : '';
     const appleMapsUrl = `https://maps.apple.com/?ll=${place.lat},${place.lon}&q=${encodeURIComponent(tags.name)}`;
-    const osmUrl = `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=19/${place.lat}/${place.lon}`;
+    const secondMapUrl = tags.googleMapsUri
+      ? tags.googleMapsUri
+      : `https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=19/${place.lat}/${place.lon}`;
+    const secondMapLabel = tags.googleMapsUri ? 'view on Google Maps →' : 'view on map →';
+
+    const ratingBit = tags.rating ? `${tags.rating}★ (${tags.userRatingCount || 0})` : '';
+    const priceBit = tags.priceLevel || '';
+    const openBit = tags.openNow === true ? 'open now' : tags.openNow === false ? 'closed now' : '';
+    const bonusMeta = [ratingBit, priceBit, openBit].filter(Boolean).join(' · ');
 
     const card = document.createElement('div');
     card.className = 'result-card' + (isPick ? ' pick' : '');
@@ -534,12 +647,13 @@ function renderResultsList(){
       <div class="result-name">#${i + 1} ${tags.name}</div>
       <div class="result-meta">
         ${distMiles} mi away
-        ${cuisine ? ' · ' + cuisine : ''}<br>
+        ${cuisine ? ' · ' + cuisine : ''}
+        ${bonusMeta ? '<br>' + bonusMeta : ''}<br>
         ${address || 'address not mapped'}
         ${tags.phone ? '<br>' + tags.phone : ''}
       </div>
       <a class="result-link" href="${appleMapsUrl}" target="_blank">open in Apple Maps →</a>
-      <a class="result-link" href="${osmUrl}" target="_blank">view on map →</a>
+      <a class="result-link" href="${secondMapUrl}" target="_blank">${secondMapLabel}</a>
     `;
     list.appendChild(card);
   });
